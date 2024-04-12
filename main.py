@@ -14,7 +14,7 @@ client = discord.Client(intents=intents)
 
 
 
-CHANNELS = ['1227660615724568630']
+CHANNELS = ['your_channel_id']
 WEATHER_API_KEY = os.getenv('WEATHER_KEY')
 OPENAI_KEY = os.getenv('NEWOPENAI_API_KEY')
 
