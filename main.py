@@ -1,60 +1,123 @@
+import os
 import discord
 import requests
-from openai import OpenAI
+import json
+# Load environment variables from .env file
+from dotenv import load_dotenv
+load_dotenv()
 
-# Replace with your OpenWeatherMap API Key
-api_key = "d13a259cfcb7e89a51a23f761b3a9924npm install openai@^4.0.0"
+# Initialize Discord client
+intents = discord.Intents.all()
+client = discord.Client(intents=intents)
 
-# Replace with your OpenRouter.ai API Key
-openai.api_key = "YOUR_OPENROUTER_AI_API_KEY"
+# Constants
 
-# Discord Bot Setup
-client = discord.Client()
 
-# Function to fetch weather data
-def get_weather(city):
-  url = f"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric"
-  response = requests.get(url)
-  return response.json()
 
-# Function to generate creative response with ChatGPT
-def generate_creative_response(prompt):
-  response = openai.Completion.create(
-      engine="text-davinci-003",
-      prompt=prompt,
-      max_tokens=100,
-      n=1,
-      stop=None,
-      temperature=0.7,
-  )
-  return response.choices[0].text.strip()
+CHANNELS = ['1227660615724568630']
+WEATHER_API_KEY = os.getenv('WEATHER_KEY')
+OPENAI_KEY = os.getenv('NEWOPENAI_API_KEY')
 
-# Function to handle weather commands
+def get_coordinates(city_name):
+    print(city_name)
+    url = f'http://api.openweathermap.org/geo/1.0/direct?q={city_name}&limit=1&appid={WEATHER_API_KEY}'
+    response = requests.get(url)
+    data = response.json()
+    
+    return data
+
+# Function to fetch weather data from OpenWeatherMap API
+def get_weather(city_name):
+    data_1 = get_coordinates(city_name)
+    lat = data_1[0]['lat']
+    lon = data_1[0]['lon']
+    url = f'https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={WEATHER_API_KEY}'
+    response = requests.post(url)
+    data = response.json()
+    return data
+    
+
+# Event handler for when the bot is ready
+@client.event
+async def on_ready():
+    print('The bot is online')
+
+# Event handler for when a message is received
 @client.event
 async def on_message(message):
-  if message.author == client.user:
-    return
+    print(message.content)
+    if message.author.bot:
+        return
+    if str(message.channel.id) not in CHANNELS and client.user.id not in [user.id for user in message.mentions]:
+        return
+    # Check if the message is a weather command
+    if 'weather' in message.content.lower():
+    # If the message starts with '!weather'
+        city_name = message.content.split('weather', 1)[1].strip()
+        weather_data = get_weather(city_name)
+        main_weather = weather_data['weather'][0]['main']
+        temp = weather_data['main']['temp']
+        humidity = weather_data['main']['humidity']
+        visibility = weather_data['visibility']
+        wind = weather_data['wind']['speed']
+        
+      
+       
+        response = requests.post(
+            url="https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {OPENAI_KEY}",
+                
+            },
+            data=json.dumps({
+                "model": "openai/gpt-3.5-turbo", # Optional
+                "messages": [
+                    
+                {"role": "user", "content":"The "
+                                               f"weather detials of the {city_name}"
+                                                f"main{main_weather}, temp:{temp}, humidity:{humidity}, visibility:{visibility}, windspeed:{wind}"
+                                                "now give me content in such a very much intereactive way of messages using all these "
+                                                "make the reponse as beatiful as possible and be sarcastic inlcude all emojis whatever is needed"
+                                                "dont include any hastags, unneccesarily, and make sure that you bold  the main words, be funny and sarcastic, and make sure that is"
+                                                "readable dont clutter all the content in one para, try to write 3-4 or more than that, but small paras, but dont give more than 10 lines"
+                                                
+                                               
+                                                  
+                                        
+                    }
+                ]
+            })
+            )
+        content = response.json()['choices'][0]['message']['content']
+       
+        await message.channel.send(content)
+       
 
-  if message.content.startswith("!weather"):
-    city = message.content.split()[1]
+    else:
+       
+       
+       
+        response = requests.post(
+            url="https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {OPENAI_KEY}",
+                
+            },
+            data=json.dumps({
+                "model": "openai/gpt-3.5-turbo", # Optional
+                "messages": [
+                    
+                {"role": "user", "content":message}
+                ]
+            })
+            )
+        content = response.json()['choices'][0]['message']['content']
+       
+        await message.channel.send(content)
+        
+    # Write the updated chat history back to the file
+   
 
-    try:
-      weather_data = get_weather(city)
-      temp = weather_data["main"]["temp"]
-      desc = weather_data["weather"][0]["description"]
-
-      # Basic weather response with a touch of personality
-      response = f"The weather in {city} is currently {temp:.1f}°C and {desc}. Don't forget to pack an umbrella... unless you're a mermaid "
-
-      # Generate a creative response using ChatGPT (optional)
-      creative_prompt = f"Write a haiku poem about the weather in {city} based on the description '{desc}'"
-      creative_response = generate_creative_response(creative_prompt)
-      response += f"\n\n{creative_response}"
-
-      await message.channel.send(response)
-    except Exception as e:
-      # Handle errors with humor
-      await message.channel.send(f"Oops! Seems like I have a case of temporary amnesia. I can't find weather data for '{city}' right now. Maybe it's hiding from the rain clouds? Try again later!")
-
+    
 # Run the bot
-client.run("YOUR_BOT_TOKEN")
+client.run(os.getenv('TOKEN'))
